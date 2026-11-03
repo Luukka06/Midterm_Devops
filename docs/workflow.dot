@@ -1,0 +1,15 @@
+digraph StockPilotPipeline {
+  graph [rankdir=LR, bgcolor="transparent", pad="0.35", nodesep="0.35", ranksep="0.52", fontname="Arial"];
+  node [shape=box, style="rounded,filled", penwidth=1.2, margin="0.21,0.15", fontname="Arial", fontsize=12, color="#E0E9EB", fillcolor="#F2F7F7", fontcolor="#193749"];
+  edge [color="#90AAA8", arrowsize=0.7, penwidth=1.5, fontname="Arial", fontsize=10, fontcolor="#526D77"];
+  trigger [label="Push / Pull Request",fillcolor="#E9F2FD"];
+  build [label="01  BUILD\ngo build"];
+  test [label="02  TEST\ngo test -race"];
+  deploy [label="03  DEPLOY\nBlue / Green"];
+  health [label="Health check",shape=diamond,fillcolor="#FFF6E7"];
+  good [label="Active release\n+ health.log",fillcolor="#E5F8ED",color="#A7D9C1"];
+  rollback [label="Automatic rollback\nPrevious release",fillcolor="#FFF0F0",color="#E8BCC0"];
+  trigger -> build -> test -> deploy -> health;
+  health -> good [label="PASS"];
+  health -> rollback [label="FAIL"];
+}
