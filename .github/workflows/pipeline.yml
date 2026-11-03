@@ -1,0 +1,87 @@
+name: StockPilot CI/CD
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Compile the web application
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 go build -trimpath -o dist/stockpilot ./cmd/stockpilot
+          test -x dist/stockpilot
+      - name: Save compiled application
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockpilot-binary
+          path: dist/stockpilot
+          if-no-files-found: error
+
+  test:
+    name: Test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run unit and API tests
+        run: |
+          set -o pipefail
+          go test -race -v ./... | tee test-results.log
+      - name: Save test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockpilot-test-results
+          path: test-results.log
+          if-no-files-found: ignore
+
+  deploy:
+    name: Deploy
+    needs: [build, test]
+    # With a persistent self-hosted runner, set the repository variable
+    # DEPLOY_RUNNER=self-hosted (and optionally STOCKPILOT_DEPLOY_DIR).
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout deployment scripts
+        uses: actions/checkout@v4
+      - name: Download compiled application
+        uses: actions/download-artifact@v4
+        with:
+          name: stockpilot-binary
+          path: dist
+      - name: Blue-Green deployment and automatic rollback
+        env:
+          DEPLOY_DIR: ${{ vars.STOCKPILOT_DEPLOY_DIR }}
+        run: |
+          chmod +x dist/stockpilot
+          TARGET="${DEPLOY_DIR:-${RUNNER_TEMP}/stockpilot-production}"
+          bash scripts/deploy_local.sh dist/stockpilot "$TARGET" 8087 18087
+          echo "DEPLOY_TARGET=$TARGET" >> "$GITHUB_ENV"
+      - name: Monitor deployed server
+        run: bash scripts/monitor.sh http://127.0.0.1:8087 "$DEPLOY_TARGET/logs/health.log"
+      - name: Upload deployment and monitoring logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockpilot-deployment-logs
+          path: ${{ env.DEPLOY_TARGET }}/logs/
+          if-no-files-found: ignore

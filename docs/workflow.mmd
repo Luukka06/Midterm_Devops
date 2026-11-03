@@ -1,0 +1,10 @@
+flowchart TD
+    A[Push / Pull Request] --> B[Build: go build]
+    B --> C[Test: go test -race]
+    C -->|passed| D[Deploy: alternate Blue / Green release]
+    C -->|failed| X[Stop pipeline]
+    D --> E{Health check OK?}
+    E -->|yes| F[Current release activated]
+    E -->|no| G[Rollback to previous release]
+    F --> H[Monitoring result written to health.log]
+    G --> H

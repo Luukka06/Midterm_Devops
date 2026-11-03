@@ -1,0 +1,10 @@
+# Local builds and generated data
+bin/
+dist/
+production/
+data/
+*.log
+*.pid
+.DS_Store
+.vscode/
+.idea/
